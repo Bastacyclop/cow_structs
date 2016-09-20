@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::mem;
 use arrayvec::ArrayVec;
 
-pub const NODE_SIZE: usize = 8;
-pub const SHIFT: usize = 3;
+pub const NODE_SIZE: usize = 32;
+pub const SHIFT: usize = 5;
 pub const MASK: usize = NODE_SIZE - 1;
 
 #[derive(Clone, Debug)]
@@ -97,9 +97,8 @@ impl<V: Clone> CowVec<V> {
     pub fn pop(&mut self) -> Option<V> {
         if self.len == 0 { return None; }
         if self.len == 1 || self.tail.len() > 1 {
-            let value = Arc::make_mut(&mut self.tail).pop().unwrap();
             self.len -= 1;
-            return Some(value);
+            return Arc::make_mut(&mut self.tail).pop();
         }
 
         // special case where the root becomes the tail
@@ -126,6 +125,7 @@ impl<V: Clone> CowVec<V> {
         };
         if let Some(rk) = root_killer {
             mem::replace(&mut self.root, rk);
+            self.depth -= 1;
         }
 
         return Some(value);
@@ -153,8 +153,7 @@ impl<V: Clone> CowVec<V> {
     }
 
     pub fn get_mut(&mut self, index: usize) -> &mut V {
-        let to = self.tail_offset();
-        if index >= to {
+        if index >= self.tail_offset() {
             return &mut Arc::make_mut(&mut self.tail)[index & MASK];
         }
 
@@ -182,8 +181,7 @@ impl<V: Clone> CowVec<V> {
     }
 
     pub fn get(&mut self, index: usize) -> &V {
-        let to = self.tail_offset();
-        if index >= to {
+        if index >= self.tail_offset() {
             return &self.tail[index & MASK];
         }
 
@@ -252,6 +250,7 @@ mod test {
         for i in 0..n {
             assert!(v.pop() == Some(n - 1 - i));
         }
+        assert!(v.pop() == None);
     }
 
     #[test]
